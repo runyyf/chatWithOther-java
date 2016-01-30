@@ -2,6 +2,7 @@ package chat;
 
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
 
 /**
  * Created by runyyf on 2016-01-26.
@@ -12,6 +13,7 @@ public class SocketServer implements Runnable{
    * */
     private  boolean socketState = true;
     Socket socket = null;
+    static ArrayList<DistributionData> dataArrayList = new ArrayList<DistributionData>();
 
     public SocketServer(Socket accept){
         System.out.println("Create a new Thread ......."+accept.getInetAddress());
@@ -28,13 +30,16 @@ public class SocketServer implements Runnable{
 
     public void run(){
         boolean ret = true ;
+        String  netContent= null;
 
         try {
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            Thread heartBeatThread = new Thread(new HeartBeat(socket));
-            heartBeatThread.start();
+            new Thread(new HeartBeat(socket)).start();
 
+            int firstTime = 0 ;
+            String targetIp = null;
+            String content  = null;
             while (true){
                 try {
                     Thread.sleep(1000);
@@ -47,11 +52,25 @@ public class SocketServer implements Runnable{
                     break;
                 }
 
-                doRead(in);
-                //if (!doRead(in)){
-                //    break;
-                //}
+                /*
+                 *现在协议头不进行加密,为ip地址
+                 * */
+                if (firstTime == 0){
+                    targetIp = doRead(in);
+                    firstTime++;
+                }
 
+                netContent = doRead(in);
+                if (netContent!=null){
+
+                    DistributionData data = new DistributionData();
+                    data.sendStatus = 1 ;
+                    data.sourceIp = socket.getInetAddress().toString();
+                    data.targetIp = targetIp;
+                    data.content = netContent;
+                    dataArrayList.add(data);
+
+                }
             }
         } catch (IOException e) {
                 e.printStackTrace();
@@ -64,8 +83,8 @@ public class SocketServer implements Runnable{
         }
     }
 
-    public boolean doRead(BufferedReader in) {
-        String text;
+    public String doRead(BufferedReader in) {
+        String text = null;
         try {
             text = in.readLine();
             if (text != null){
@@ -75,41 +94,55 @@ public class SocketServer implements Runnable{
             e.printStackTrace();
         }
 
-        return true;
+        return text;
     }
 
-    public boolean doWrite(OutputStream out){
+    public void doWrite(OutputStreamWriter out,String content){
         try {
-            out.write("welcome to client!!".getBytes());
+            out.write(content+"\n");
             out.flush();
-        } catch (IOException e) {
-            try {
-                System.out.println("send error !! close the out");
-                out.close();
-            } catch (IOException e1) {
-                e1.printStackTrace();
-            }
+            this.setSocketState(true);
 
-            return false;
+        } catch (IOException e) {
+            this.setSocketState(false);
         }
-        return true;
+
     }
 
+    public String checkMessage(String ip){
+
+        if (dataArrayList.size() == 0){
+            return null;
+        }
+
+        String message = null;
+
+        for (int i = 0 ;i<dataArrayList.size();i++){
+            if (dataArrayList.get(i).targetIp.equals(ip.substring(1))){
+                message = dataArrayList.get(i).content;
+                dataArrayList.remove(i);
+
+                break;
+            }
+        }
+
+        return message;
+    }
     public class HeartBeat  implements Runnable {
 
         Socket socket = null;
 
         public HeartBeat(Socket socket){
-            System.out.println("heartbeat...."+socket.getInetAddress());
+            //System.out.println("heartbeat...."+socket.getInetAddress());
             this.socket = socket;
         }
 
         public void run(){
 
             try {
-                PrintWriter out = new PrintWriter(new BufferedWriter
-                        (new OutputStreamWriter(socket.getOutputStream())), true);
-
+                OutputStreamWriter out = new OutputStreamWriter(socket.getOutputStream());
+                String content;
+                boolean ret = false;
                 while (true){
                     try {
                         Thread.sleep(2000);
@@ -117,14 +150,18 @@ public class SocketServer implements Runnable{
                         e.printStackTrace();
                     }
 
-                    out.print("hello connect");
-                    out.flush();
+                    content = checkMessage(socket.getInetAddress().toString());
+                    if (content!=null){
+                         doWrite(out,content);
+                    }
+                    else {
+                         doWrite(out, "heart !!!!");
+                    }
+
                 }
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
-
         }
 
 
