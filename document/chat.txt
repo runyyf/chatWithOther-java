@@ -26,10 +26,13 @@ Server
 遇到的问题及解决办法：
 1，system.out.println()打印出来两个String一样，但是用＝＝比较就是false，
 解决：数值比较用＝＝，字符串比较用equals方法
-原因：待查
+原因：对于引用类型，==判断的是不是引用的同一个实例。判断两个实例是不是内容相同，使用自定义的equals方法。
+
+
 2.当socket服务端用printWrite 类推送数据时，即时socket已经断开也不会报异常
 解决：用OutputStreamWrite类来推送
-原因：待查
+原因：printWriter 不会抛出ioException，printWriter处理字符流，outputStream处理字节流
+
 
 下次要实现的功能：注册功能及本地数据库的搭建
 
